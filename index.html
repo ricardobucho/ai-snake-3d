@@ -1,0 +1,2362 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Snake vs Rats</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                color: white;
+                overflow: hidden;
+                height: 100vh;
+            }
+
+            #gameContainer {
+                position: relative;
+                width: 100%;
+                height: 100%;
+            }
+
+            /* Consistent UI Variables */
+            :root {
+                --ui-bg: rgba(0, 0, 0, 0.7);
+                --ui-border: 2px solid;
+                --ui-radius: 20px;
+                --ui-padding: 16px 24px;
+                --ui-font-size: 1.2em;
+                --ui-font-weight: 700;
+                --ui-blur: blur(15px);
+                --ui-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+
+                --color-primary: #32ff7e;
+                --color-secondary: #4682ff;
+                --color-accent: #ff6b6b;
+                --color-boost: #ffd700;
+                --color-warning: #ffa500;
+            }
+
+            .ui-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 100;
+            }
+
+            .top-ui {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                padding: 25px;
+                pointer-events: auto;
+            }
+
+            .game-title {
+                font-size: 3.2em;
+                font-weight: 800;
+                color: white;
+                text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+            }
+
+            .score-panel {
+                background: var(--ui-bg);
+                padding: 20px 30px;
+                border-radius: var(--ui-radius);
+                backdrop-filter: var(--ui-blur);
+                border: var(--ui-border) var(--color-primary);
+                box-shadow: var(--ui-shadow);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                min-width: 200px;
+            }
+
+            .score-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: var(--ui-font-size);
+                font-weight: var(--ui-font-weight);
+                color: var(--color-primary);
+                text-shadow: 0 0 15px var(--color-primary);
+                padding: 8px 0;
+                border-bottom: 1px solid rgba(50, 255, 126, 0.3);
+            }
+
+            .score-item:last-child {
+                border-bottom: none;
+            }
+
+            .score-label {
+                opacity: 0.9;
+            }
+
+            .score-value {
+                font-weight: 800;
+                font-size: 1.1em;
+                text-shadow: 0 0 20px var(--color-primary);
+            }
+
+            .ui-element {
+                background: var(--ui-bg);
+                padding: var(--ui-padding);
+                border-radius: var(--ui-radius);
+                backdrop-filter: var(--ui-blur);
+                border: var(--ui-border);
+                font-size: var(--ui-font-size);
+                font-weight: var(--ui-font-weight);
+                box-shadow: var(--ui-shadow);
+                transition: all 0.3s ease;
+            }
+
+            /* Boost Bar Container */
+            .boost-container {
+                position: absolute;
+                top: 25px;
+                left: 50%;
+                transform: translateX(-50%);
+                pointer-events: auto;
+            }
+
+            .boost-bar-container {
+                background: var(--ui-bg);
+                padding: 12px 20px;
+                border-radius: var(--ui-radius);
+                backdrop-filter: var(--ui-blur);
+                border: var(--ui-border) var(--color-boost);
+                box-shadow: var(--ui-shadow);
+                width: 300px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .boost-icon {
+                font-size: 1.5em;
+                color: var(--color-boost);
+                text-shadow: 0 0 10px var(--color-boost);
+            }
+
+            .boost-bar-wrapper {
+                position: relative;
+                flex: 1;
+                height: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 215, 0, 0.3);
+            }
+
+            .boost-bar-fill {
+                height: 100%;
+                background: linear-gradient(
+                    90deg,
+                    #ffa500,
+                    var(--color-boost),
+                    #ffff00
+                );
+                border-radius: 10px;
+                transition:
+                    width 0.3s ease,
+                    box-shadow 0.3s ease;
+                box-shadow: 0 0 10px var(--color-boost);
+                position: relative;
+                overflow: hidden;
+            }
+
+            .boost-bar-fill::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.4),
+                    transparent
+                );
+                animation: shimmer 2s infinite;
+            }
+
+            @keyframes shimmer {
+                0% {
+                    left: -100%;
+                }
+                100% {
+                    left: 100%;
+                }
+            }
+
+            .boost-active .boost-bar-fill {
+                animation: boostPulse 0.3s ease-in-out infinite alternate;
+                box-shadow:
+                    0 0 20px var(--color-boost),
+                    0 0 40px rgba(255, 215, 0, 0.5);
+            }
+
+            @keyframes boostPulse {
+                from {
+                    filter: brightness(1);
+                }
+                to {
+                    filter: brightness(1.3);
+                }
+            }
+
+            .boost-bar-text {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 0.8em;
+                font-weight: 700;
+                color: #000;
+                text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+                pointer-events: none;
+            }
+
+            .controls-ui {
+                position: absolute;
+                bottom: 25px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                gap: 20px;
+                align-items: center;
+                pointer-events: auto;
+            }
+
+            .control-text {
+                border-color: var(--color-accent);
+                color: var(--color-accent);
+                text-shadow: 0 0 10px var(--color-accent);
+            }
+
+            .btn {
+                background: var(--ui-bg);
+                border: var(--ui-border) var(--color-secondary);
+                padding: var(--ui-padding);
+                border-radius: var(--ui-radius);
+                color: var(--color-secondary);
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-weight: var(--ui-font-weight);
+                font-size: var(--ui-font-size);
+                backdrop-filter: var(--ui-blur);
+                text-shadow: 0 0 15px var(--color-secondary);
+                box-shadow: var(--ui-shadow);
+            }
+
+            .btn:hover {
+                background: rgba(70, 130, 255, 0.2);
+                border-color: var(--color-secondary);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
+                text-shadow: 0 0 20px var(--color-secondary);
+            }
+
+            .game-over {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(20px);
+                z-index: 1000;
+                pointer-events: auto;
+            }
+
+            .game-over-content {
+                background: var(--ui-bg);
+                padding: 50px;
+                border-radius: 30px;
+                text-align: center;
+                backdrop-filter: blur(25px);
+                border: 3px solid var(--color-accent);
+                transform: scale(0.8);
+                animation: modalPop 0.6s ease forwards;
+                box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+            }
+
+            @keyframes modalPop {
+                to {
+                    transform: scale(1);
+                }
+            }
+
+            .game-over h2 {
+                color: var(--color-accent);
+                margin-bottom: 25px;
+                font-size: 3.5em;
+                font-weight: 800;
+                text-shadow:
+                    3px 3px 6px rgba(0, 0, 0, 0.8),
+                    0 0 30px var(--color-accent);
+                filter: drop-shadow(0 0 15px rgba(255, 107, 107, 0.5));
+            }
+
+            .restart-btn {
+                background: linear-gradient(
+                    45deg,
+                    var(--color-accent),
+                    #ff8787
+                );
+                border: none;
+                padding: 18px 36px;
+                border-radius: var(--ui-radius);
+                color: white;
+                font-size: 1.3em;
+                font-weight: var(--ui-font-weight);
+                cursor: pointer;
+                transition: all 0.4s ease;
+                margin-top: 25px;
+                box-shadow: 0 12px 35px rgba(255, 107, 107, 0.5);
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            }
+
+            .restart-btn:hover {
+                transform: translateY(-4px) scale(1.05);
+                box-shadow: 0 18px 45px rgba(255, 107, 107, 0.7);
+            }
+
+            .pause-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.6);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(10px);
+                z-index: 500;
+                pointer-events: auto;
+            }
+
+            .pause-content {
+                background: var(--ui-bg);
+                padding: 40px 60px;
+                border-radius: 30px;
+                text-align: center;
+                backdrop-filter: blur(25px);
+                border: 3px solid var(--color-secondary);
+                transform: scale(0.9);
+                animation: modalPop 0.4s ease forwards;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            }
+
+            .pause-content h2 {
+                color: var(--color-secondary);
+                margin-bottom: 20px;
+                font-size: 2.5em;
+                font-weight: 800;
+                text-shadow: 0 0 20px var(--color-secondary);
+            }
+
+            .pause-content p {
+                color: rgba(255, 255, 255, 0.8);
+                font-size: 1.2em;
+                margin-bottom: 10px;
+            }
+
+            .score-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(20px);
+                z-index: 1000;
+                pointer-events: auto;
+            }
+
+            .score-modal-content {
+                background: var(--ui-bg);
+                padding: 40px;
+                border-radius: 30px;
+                backdrop-filter: blur(25px);
+                border: 3px solid var(--color-boost);
+                max-width: 500px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                transform: scale(0.8);
+                animation: modalPop 0.6s ease forwards;
+            }
+
+            .score-modal h3 {
+                text-align: center;
+                margin-bottom: 30px;
+                font-size: 2.5em;
+                font-weight: 800;
+                background: linear-gradient(45deg, var(--color-boost), #ffed4e);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-shadow: 0 0 25px var(--color-boost);
+                filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.4));
+            }
+
+            .score-entry {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 16px 20px;
+                margin-bottom: 10px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 15px;
+                border: 2px solid rgba(255, 255, 255, 0.1);
+                transition: all 0.3s ease;
+                backdrop-filter: blur(10px);
+            }
+
+            .score-entry:hover {
+                background: rgba(50, 255, 126, 0.1);
+                border-color: var(--color-primary);
+                transform: translateX(5px);
+            }
+
+            .score-entry:first-child {
+                background: rgba(255, 215, 0, 0.15);
+                border-color: var(--color-boost);
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+            }
+
+            .score-rank {
+                font-weight: var(--ui-font-weight);
+                width: 40px;
+                font-size: var(--ui-font-size);
+                color: var(--color-boost);
+            }
+
+            .score-value {
+                font-weight: 600;
+                color: var(--color-primary);
+                font-size: var(--ui-font-size);
+                text-shadow: 0 0 15px var(--color-primary);
+            }
+
+            .score-date {
+                font-size: 0.9em;
+                opacity: 0.8;
+                color: #a0a0a0;
+            }
+
+            .modal-buttons {
+                display: flex;
+                gap: 15px;
+                margin-top: 20px;
+            }
+
+            .close-btn {
+                flex: 1;
+                background: rgba(255, 255, 255, 0.1);
+                border: var(--ui-border) var(--color-secondary);
+                padding: var(--ui-padding);
+                border-radius: 15px;
+                color: var(--color-secondary);
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-weight: var(--ui-font-weight);
+                font-size: var(--ui-font-size);
+                text-shadow: 0 0 10px var(--color-secondary);
+            }
+
+            .close-btn:hover {
+                background: rgba(70, 130, 255, 0.2);
+                border-color: var(--color-secondary);
+                transform: translateY(-2px);
+            }
+
+            .clear-btn {
+                flex: 1;
+                background: rgba(255, 107, 107, 0.1);
+                border: var(--ui-border) var(--color-accent);
+                padding: var(--ui-padding);
+                border-radius: 15px;
+                color: var(--color-accent);
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-weight: var(--ui-font-weight);
+                font-size: var(--ui-font-size);
+                text-shadow: 0 0 10px var(--color-accent);
+            }
+
+            .clear-btn:hover {
+                background: rgba(255, 107, 107, 0.2);
+                border-color: var(--color-accent);
+                transform: translateY(-2px);
+            }
+
+            .instructions {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                text-align: center;
+                font-size: 1.6em;
+                opacity: 0.9;
+                pointer-events: none;
+                z-index: 50;
+                background: var(--ui-bg);
+                padding: 30px 40px;
+                border-radius: 25px;
+                backdrop-filter: var(--ui-blur);
+                border: var(--ui-border) rgba(255, 255, 255, 0.2);
+                color: var(--color-primary);
+                text-shadow: 0 0 15px var(--color-primary);
+                box-shadow: var(--ui-shadow);
+            }
+
+            .loading {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100vh;
+                background: linear-gradient(135deg, #b8c6db 0%, #f5f7fa 100%);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 2000;
+            }
+
+            .loading-icons {
+                display: flex;
+                gap: 40px;
+                margin-bottom: 40px;
+                align-items: center;
+            }
+
+            .loading-snake {
+                font-size: 4em;
+                animation: bounce 2s ease-in-out infinite;
+            }
+
+            .loading-rat {
+                font-size: 3em;
+                animation: bounce 2s ease-in-out infinite 0.5s;
+            }
+
+            @keyframes bounce {
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+                50% {
+                    transform: translateY(-20px);
+                }
+            }
+
+            .progress-container {
+                width: 300px;
+                height: 8px;
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            .progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, #667eea, #764ba2);
+                border-radius: 10px;
+                width: 0%;
+                animation: loadProgress 2s ease-out forwards;
+                box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+            }
+
+            @keyframes loadProgress {
+                to {
+                    width: 100%;
+                }
+            }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    </head>
+    <body>
+        <div class="loading" id="loading">
+            <div class="loading-icons">
+                <div class="loading-snake">🐍</div>
+                <div class="loading-rat">🐀</div>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="gameContainer" style="display: none">
+            <div class="ui-overlay">
+                <div class="top-ui">
+                    <h1 class="game-title">🐍 🐀</h1>
+                    <div class="score-panel">
+                        <div class="score-item">
+                            <span class="score-label">Score:</span>
+                            <span class="score-value" id="score">0</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">High:</span>
+                            <span class="score-value" id="highScore">0</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">Length:</span>
+                            <span class="score-value" id="length">1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="boost-container">
+                    <div class="boost-bar-container" id="boostContainer">
+                        <div class="boost-icon">⚡</div>
+                        <div class="boost-bar-wrapper">
+                            <div class="boost-bar-fill" id="boostBarFill"></div>
+                            <div class="boost-bar-text" id="boostBarText">
+                                5/5
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="instructions" id="instructions">
+                    🐀 Hunt the escaping rats! Use SPACE for speed boost! 🐀<br />
+                    <small style="opacity: 0.8"
+                        >WASD/Arrows to move • Collect ⚡ for boost • Break 🧱
+                        with boost!</small
+                    >
+                </div>
+
+                <div class="controls-ui">
+                    <div class="ui-element control-text">
+                        🎮 WASD/ARROWS • SPACE=BOOST • ESC=PAUSE
+                    </div>
+                    <button class="btn" onclick="togglePause()">PAUSE</button>
+                    <button class="btn" onclick="showScoreHistory()">
+                        SCORES
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div class="game-over" id="gameOver">
+            <div class="game-over-content">
+                <h2>🐍 Game Over! 🐍</h2>
+                <p
+                    style="
+                        font-size: 1.4em;
+                        margin-bottom: 15px;
+                        color: var(--color-primary);
+                    "
+                >
+                    Points Scored: <span id="finalScore">0</span>
+                </p>
+                <p
+                    style="
+                        opacity: 0.8;
+                        font-size: 1.1em;
+                        color: var(--color-secondary);
+                    "
+                >
+                    Snake Length: <span id="finalLength">1</span>
+                </p>
+                <button class="restart-btn" onclick="restartGame()">
+                    🐀 Hunt Again 🐀
+                </button>
+            </div>
+        </div>
+
+        <!-- Pause Overlay -->
+        <div class="pause-overlay" id="pauseOverlay">
+            <div class="pause-content">
+                <h2>⏸️ Game Paused</h2>
+                <p>Press SPACE or click RESUME to continue</p>
+                <p>Press ESC to pause/resume anytime</p>
+            </div>
+        </div>
+
+        <!-- Score History Modal -->
+        <div class="score-modal" id="scoreModal">
+            <div class="score-modal-content">
+                <h3>🏆 Top Hunters 🏆</h3>
+                <div class="score-list" id="scoreList"></div>
+                <div class="modal-buttons">
+                    <button class="close-btn" onclick="closeScoreHistory()">
+                        Close
+                    </button>
+                    <button class="clear-btn" onclick="clearScoreHistory()">
+                        Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Game variables
+            let scene, camera, renderer;
+            let gameBoard,
+                boardGroup,
+                snake = [],
+                food,
+                boostPickup = null,
+                obstacles = [],
+                snakeMeshes = [];
+            let gridDots = [],
+                headDot = null;
+            let dx = 0,
+                dy = 0,
+                dz = 0;
+            let score = 0,
+                highScore = 0;
+            let gameRunning = false,
+                gamePaused = false,
+                gameStarted = false;
+            let baseInterval = 200,
+                moveInterval = 200,
+                lastMoveTime = 0;
+
+            // Speed boost system
+            let boostCharges = 5;
+            let maxBoostCharges = 5;
+            let isBoostActive = false;
+            let boostStartTime = 0;
+            let boostDuration = 1000;
+            let boostSpeedMultiplier = 0.4;
+
+            // Board rotation
+            let boardRotationX = 0;
+            let boardRotationZ = 0;
+            let targetRotationX = 0;
+            let targetRotationZ = 0;
+
+            // Rat movement
+            let ratMoveInterval = 800;
+            let lastRatMoveTime = 0;
+
+            // Spawn timers
+            let boosterSpawnInterval = 10000;
+            let lastBoosterSpawnTime = 0;
+            let obstacleSpawnInterval = 8000;
+            let lastObstacleSpawnTime = 0;
+
+            // Board dimensions
+            const BOARD_SIZE = 20;
+            const TILE_SIZE = 2.0;
+
+            // UI elements
+            const scoreElement = document.getElementById("score");
+            const highScoreElement = document.getElementById("highScore");
+            const lengthElement = document.getElementById("length");
+            const boostBarFillElement = document.getElementById("boostBarFill");
+            const boostBarTextElement = document.getElementById("boostBarText");
+            const boostContainerElement =
+                document.getElementById("boostContainer");
+            const gameOverElement = document.getElementById("gameOver");
+            const finalScoreElement = document.getElementById("finalScore");
+            const finalLengthElement = document.getElementById("finalLength");
+            const scoreModalElement = document.getElementById("scoreModal");
+            const scoreListElement = document.getElementById("scoreList");
+            const instructionsElement = document.getElementById("instructions");
+            const loadingElement = document.getElementById("loading");
+            const gameContainerElement =
+                document.getElementById("gameContainer");
+            const pauseOverlayElement = document.getElementById("pauseOverlay");
+
+            // Initialize high score
+            highScore = localStorage.getItem("snakeHighScore") || 0;
+            highScoreElement.textContent = highScore;
+            updateBoostBar();
+
+            // Focus/visibility change handling
+            document.addEventListener("visibilitychange", function () {
+                if (document.hidden && gameRunning && !gamePaused) {
+                    togglePause();
+                }
+            });
+
+            window.addEventListener("blur", function () {
+                if (gameRunning && !gamePaused) {
+                    togglePause();
+                }
+            });
+
+            // Coordinate conversion helpers
+            function gridToWorld(gridX, gridZ) {
+                return {
+                    x: (gridX - BOARD_SIZE / 2 + 0.5) * TILE_SIZE,
+                    z: (gridZ - BOARD_SIZE / 2 + 0.5) * TILE_SIZE,
+                };
+            }
+
+            function isValidGridPosition(gridX, gridZ) {
+                return (
+                    gridX >= 0 &&
+                    gridX < BOARD_SIZE &&
+                    gridZ >= 0 &&
+                    gridZ < BOARD_SIZE
+                );
+            }
+
+            // Wrap coordinates for teleportation
+            function wrapCoordinates(x, z) {
+                let wrappedX = x;
+                let wrappedZ = z;
+
+                if (x < 0) wrappedX = BOARD_SIZE - 1;
+                if (x >= BOARD_SIZE) wrappedX = 0;
+                if (z < 0) wrappedZ = BOARD_SIZE - 1;
+                if (z >= BOARD_SIZE) wrappedZ = 0;
+
+                return { x: wrappedX, z: wrappedZ };
+            }
+
+            // Update boost bar
+            function updateBoostBar() {
+                const fillPercentage = (boostCharges / maxBoostCharges) * 100;
+                boostBarFillElement.style.width = fillPercentage + "%";
+                boostBarTextElement.textContent = `${boostCharges}/${maxBoostCharges}`;
+
+                if (isBoostActive) {
+                    boostContainerElement.classList.add("boost-active");
+                } else {
+                    boostContainerElement.classList.remove("boost-active");
+                }
+            }
+
+            // Update board rotation
+            function updateBoardRotation() {
+                if (dx === 1) {
+                    targetRotationZ = -0.02;
+                    targetRotationX = 0;
+                } else if (dx === -1) {
+                    targetRotationZ = 0.02;
+                    targetRotationX = 0;
+                } else if (dz === 1) {
+                    targetRotationX = 0.02;
+                    targetRotationZ = 0;
+                } else if (dz === -1) {
+                    targetRotationX = -0.02;
+                    targetRotationZ = 0;
+                } else {
+                    targetRotationX = 0;
+                    targetRotationZ = 0;
+                }
+
+                boardRotationX += (targetRotationX - boardRotationX) * 0.05;
+                boardRotationZ += (targetRotationZ - boardRotationZ) * 0.05;
+
+                if (boardGroup) {
+                    boardGroup.rotation.x = boardRotationX;
+                    boardGroup.rotation.z = boardRotationZ;
+                }
+            }
+
+            // Update head dot animation
+            function updateHeadDot() {
+                if (!headDot || snake.length === 0) return;
+
+                const head = snake[0];
+                const worldPos = gridToWorld(head.x, head.z);
+                headDot.position.set(worldPos.x, 0.3, worldPos.z);
+
+                // Pulsing animation
+                const time = performance.now() / 1000;
+                const scale = 1.2 + Math.sin(time * 4) * 0.4;
+                headDot.scale.setScalar(scale);
+            }
+
+            // Clear all snake meshes properly
+            function clearSnakeMeshes() {
+                snakeMeshes.forEach((mesh) => {
+                    scene.remove(mesh);
+                    if (mesh.geometry) mesh.geometry.dispose();
+                    if (mesh.material) {
+                        if (Array.isArray(mesh.material)) {
+                            mesh.material.forEach((material) =>
+                                material.dispose(),
+                            );
+                        } else {
+                            mesh.material.dispose();
+                        }
+                    }
+                });
+                snakeMeshes = [];
+            }
+
+            // Create better shaped snake with cylindrical segments and directional head
+            function updateSnakeVisuals() {
+                clearSnakeMeshes();
+                if (snake.length === 0) return;
+
+                for (let i = 0; i < snake.length; i++) {
+                    const segment = snake[i];
+                    const worldPos = gridToWorld(segment.x, segment.z);
+                    const isHead = i === 0;
+
+                    if (isHead) {
+                        // Snake head - elongated capsule shape with direction
+                        const headGroup = new THREE.Group();
+
+                        // Main head body
+                        const headGeometry = new THREE.SphereGeometry(
+                            0.5,
+                            12,
+                            8,
+                        );
+                        headGeometry.scale(1.3, 1.0, 1.0);
+                        const headMaterial = new THREE.MeshPhongMaterial({
+                            color: 0x00ff00,
+                            emissive: 0x004400,
+                            emissiveIntensity: 0.3,
+                            shininess: 100,
+                        });
+                        const headMesh = new THREE.Mesh(
+                            headGeometry,
+                            headMaterial,
+                        );
+                        headGroup.add(headMesh);
+
+                        // Eyes
+                        const eyeGeometry = new THREE.SphereGeometry(
+                            0.08,
+                            8,
+                            6,
+                        );
+                        const eyeMaterial = new THREE.MeshPhongMaterial({
+                            color: 0xff0000,
+                            emissive: 0x440000,
+                            emissiveIntensity: 0.4,
+                        });
+
+                        const leftEye = new THREE.Mesh(
+                            eyeGeometry,
+                            eyeMaterial,
+                        );
+                        leftEye.position.set(0.35, 0.2, 0.25);
+                        headGroup.add(leftEye);
+
+                        const rightEye = new THREE.Mesh(
+                            eyeGeometry,
+                            eyeMaterial,
+                        );
+                        rightEye.position.set(0.35, 0.2, -0.25);
+                        headGroup.add(rightEye);
+
+                        // Nostrils
+                        const nostrilGeometry = new THREE.SphereGeometry(
+                            0.03,
+                            6,
+                            4,
+                        );
+                        const nostrilMaterial = new THREE.MeshPhongMaterial({
+                            color: 0x002200,
+                        });
+
+                        const leftNostril = new THREE.Mesh(
+                            nostrilGeometry,
+                            nostrilMaterial,
+                        );
+                        leftNostril.position.set(0.58, 0.05, 0.1);
+                        headGroup.add(leftNostril);
+
+                        const rightNostril = new THREE.Mesh(
+                            nostrilGeometry,
+                            nostrilMaterial,
+                        );
+                        rightNostril.position.set(0.58, 0.05, -0.1);
+                        headGroup.add(rightNostril);
+
+                        // Fixed rotation based on movement direction
+                        if (dx === 1) {
+                            headGroup.rotation.y = 0; // Right
+                        } else if (dx === -1) {
+                            headGroup.rotation.y = Math.PI; // Left
+                        } else if (dz === 1) {
+                            headGroup.rotation.y = Math.PI / 2; // Forward/Down
+                        } else if (dz === -1) {
+                            headGroup.rotation.y = -Math.PI / 2; // Backward/Up
+                        }
+
+                        headGroup.position.set(worldPos.x, 0.3, worldPos.z);
+                        headGroup.castShadow = true;
+                        scene.add(headGroup);
+                        snakeMeshes.push(headGroup);
+                    } else {
+                        // Body segments - cylinders for more snake-like appearance
+                        const bodyGeometry = new THREE.CylinderGeometry(
+                            0.4,
+                            0.4,
+                            0.8,
+                        );
+                        bodyGeometry.rotateZ(Math.PI / 2);
+                        const bodyMaterial = new THREE.MeshPhongMaterial({
+                            color: 0x32cd32,
+                            emissive: 0x003300,
+                            emissiveIntensity: 0.2,
+                            shininess: 80,
+                        });
+
+                        const bodyMesh = new THREE.Mesh(
+                            bodyGeometry,
+                            bodyMaterial,
+                        );
+                        bodyMesh.position.set(worldPos.x, 0.3, worldPos.z);
+                        bodyMesh.castShadow = true;
+                        scene.add(bodyMesh);
+                        snakeMeshes.push(bodyMesh);
+                    }
+                }
+
+                lengthElement.textContent = snake.length;
+            }
+
+            // Activate speed boost
+            function activateBoost() {
+                if (boostCharges > 0 && !isBoostActive) {
+                    boostCharges--;
+                    isBoostActive = true;
+                    boostStartTime = performance.now();
+                    moveInterval = baseInterval * boostSpeedMultiplier;
+                    updateBoostBar();
+                }
+            }
+
+            // Update boost system
+            function updateBoost(currentTime) {
+                if (isBoostActive) {
+                    const boostElapsed = currentTime - boostStartTime;
+                    if (boostElapsed >= boostDuration) {
+                        isBoostActive = false;
+                        moveInterval = baseInterval;
+                        updateBoostBar();
+                    }
+                }
+            }
+
+            // Spawn single booster every 10 seconds
+            function manageBoosterSpawn(currentTime) {
+                if (currentTime - lastBoosterSpawnTime > boosterSpawnInterval) {
+                    if (boostPickup) {
+                        scene.remove(boostPickup);
+                        if (boostPickup.geometry)
+                            boostPickup.geometry.dispose();
+                        if (boostPickup.material)
+                            boostPickup.material.dispose();
+                        boostPickup = null;
+                    }
+
+                    generateSingleBooster();
+                    lastBoosterSpawnTime = currentTime;
+                }
+            }
+
+            // Generate better lightning bolt with orange tint
+            function generateSingleBooster() {
+                let pickupGridX, pickupGridZ;
+                let validPosition = false;
+
+                while (!validPosition) {
+                    pickupGridX = Math.floor(Math.random() * BOARD_SIZE);
+                    pickupGridZ = Math.floor(Math.random() * BOARD_SIZE);
+
+                    validPosition = true;
+
+                    for (let segment of snake) {
+                        if (
+                            segment.x === pickupGridX &&
+                            segment.z === pickupGridZ
+                        ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    if (
+                        food &&
+                        pickupGridX === food.userData.gridX &&
+                        pickupGridZ === food.userData.gridZ
+                    ) {
+                        validPosition = false;
+                    }
+
+                    for (let obstacle of obstacles) {
+                        if (
+                            pickupGridX === obstacle.userData.gridX &&
+                            pickupGridZ === obstacle.userData.gridZ
+                        ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                }
+
+                const worldPos = gridToWorld(pickupGridX, pickupGridZ);
+
+                // Create a simple but effective lightning bolt
+                const boltGroup = new THREE.Group();
+
+                // Main bolt material with orange tint
+                const boltMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff8c00, // Dark orange
+                    emissive: 0xff6600,
+                    emissiveIntensity: 0.8,
+                });
+
+                // Top part of bolt
+                const topGeometry = new THREE.BoxGeometry(0.15, 0.8, 0.1);
+                const topPart = new THREE.Mesh(topGeometry, boltMaterial);
+                topPart.position.set(-0.1, 0.3, 0);
+                topPart.rotation.z = -0.3;
+                boltGroup.add(topPart);
+
+                // Middle part of bolt
+                const middleGeometry = new THREE.BoxGeometry(0.12, 0.6, 0.1);
+                const middlePart = new THREE.Mesh(middleGeometry, boltMaterial);
+                middlePart.position.set(0.05, -0.1, 0);
+                middlePart.rotation.z = 0.4;
+                boltGroup.add(middlePart);
+
+                // Bottom part of bolt
+                const bottomGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+                const bottomPart = new THREE.Mesh(bottomGeometry, boltMaterial);
+                bottomPart.position.set(-0.08, -0.45, 0);
+                bottomPart.rotation.z = -0.2;
+                boltGroup.add(bottomPart);
+
+                // Add glow sphere
+                const glowGeometry = new THREE.SphereGeometry(0.6, 16, 12);
+                const glowMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff8c00,
+                    transparent: true,
+                    opacity: 0.3,
+                    emissive: 0xff6600,
+                    emissiveIntensity: 0.4,
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                boltGroup.add(glow);
+
+                boltGroup.position.set(worldPos.x, 0.8, worldPos.z);
+                boltGroup.castShadow = true;
+                boltGroup.userData = {
+                    gridX: pickupGridX,
+                    gridZ: pickupGridZ,
+                };
+
+                boostPickup = boltGroup;
+                scene.add(boostPickup);
+            }
+
+            // Manage obstacle spawning
+            function manageObstacleSpawn(currentTime) {
+                if (
+                    currentTime - lastObstacleSpawnTime >
+                        obstacleSpawnInterval &&
+                    obstacles.length < 3
+                ) {
+                    generateObstacle();
+                    lastObstacleSpawnTime = currentTime;
+                }
+            }
+
+            // Generate realistic brick wall obstacle
+            function generateObstacle() {
+                let obstacleGridX, obstacleGridZ;
+                let validPosition = false;
+                let attempts = 0;
+
+                while (!validPosition && attempts < 50) {
+                    obstacleGridX = Math.floor(Math.random() * BOARD_SIZE);
+                    obstacleGridZ = Math.floor(Math.random() * BOARD_SIZE);
+
+                    validPosition = true;
+
+                    // Check distance from snake head (must be at least 5 tiles away)
+                    const head = snake[0];
+                    const distance =
+                        Math.abs(obstacleGridX - head.x) +
+                        Math.abs(obstacleGridZ - head.z);
+                    if (distance < 5) {
+                        validPosition = false;
+                        attempts++;
+                        continue;
+                    }
+
+                    // Check collision with snake
+                    for (let segment of snake) {
+                        if (
+                            segment.x === obstacleGridX &&
+                            segment.z === obstacleGridZ
+                        ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    // Check collision with food
+                    if (
+                        food &&
+                        obstacleGridX === food.userData.gridX &&
+                        obstacleGridZ === food.userData.gridZ
+                    ) {
+                        validPosition = false;
+                    }
+
+                    // Check collision with booster
+                    if (
+                        boostPickup &&
+                        obstacleGridX === boostPickup.userData.gridX &&
+                        obstacleGridZ === boostPickup.userData.gridZ
+                    ) {
+                        validPosition = false;
+                    }
+
+                    // Check collision with other obstacles
+                    for (let obstacle of obstacles) {
+                        if (
+                            obstacleGridX === obstacle.userData.gridX &&
+                            obstacleGridZ === obstacle.userData.gridZ
+                        ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    attempts++;
+                }
+
+                if (!validPosition) return;
+
+                const worldPos = gridToWorld(obstacleGridX, obstacleGridZ);
+
+                // Create proper brick wall with better brick appearance
+                const wallGroup = new THREE.Group();
+
+                // Brick material - bright brick red for visibility
+                const brickMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff4500, // Orange red
+                    roughness: 0.8,
+                });
+
+                // Create a 4x3 arrangement of proper brick-shaped blocks
+                for (let row = 0; row < 3; row++) {
+                    const bricksInRow = 4;
+                    const offsetX = row % 2 === 0 ? 0 : 0.125; // Offset for brick pattern
+
+                    for (let col = 0; col < bricksInRow; col++) {
+                        // Individual brick - proper brick proportions (2:1 ratio)
+                        const brickGeometry = new THREE.BoxGeometry(
+                            0.4,
+                            0.2,
+                            0.2,
+                        );
+                        const brick = new THREE.Mesh(
+                            brickGeometry,
+                            brickMaterial,
+                        );
+
+                        // Position bricks in proper pattern
+                        const x =
+                            (col - (bricksInRow - 1) / 2) * 0.25 + offsetX;
+                        const y = (row - 1) * 0.22;
+                        brick.position.set(x, y, 0);
+                        wallGroup.add(brick);
+
+                        // Add mortar lines (thin gray lines between bricks)
+                        if (col < bricksInRow - 1) {
+                            const mortarGeometry = new THREE.BoxGeometry(
+                                0.02,
+                                0.2,
+                                0.22,
+                            );
+                            const mortarMaterial = new THREE.MeshPhongMaterial({
+                                color: 0x808080,
+                            });
+                            const mortar = new THREE.Mesh(
+                                mortarGeometry,
+                                mortarMaterial,
+                            );
+                            mortar.position.set(x + 0.125, y, 0);
+                            wallGroup.add(mortar);
+                        }
+                    }
+
+                    // Horizontal mortar line
+                    if (row < 2) {
+                        const hMortarGeometry = new THREE.BoxGeometry(
+                            1.0,
+                            0.02,
+                            0.22,
+                        );
+                        const hMortarMaterial = new THREE.MeshPhongMaterial({
+                            color: 0x808080,
+                        });
+                        const hMortar = new THREE.Mesh(
+                            hMortarGeometry,
+                            hMortarMaterial,
+                        );
+                        hMortar.position.set(0, row * 0.22 - 0.11, 0);
+                        wallGroup.add(hMortar);
+                    }
+                }
+
+                wallGroup.position.set(worldPos.x, 0.5, worldPos.z);
+                wallGroup.castShadow = true;
+                wallGroup.receiveShadow = true;
+                wallGroup.userData = {
+                    gridX: obstacleGridX,
+                    gridZ: obstacleGridZ,
+                };
+
+                scene.add(wallGroup);
+                obstacles.push(wallGroup);
+            }
+
+            // Remove obstacle
+            function removeObstacle(obstacle) {
+                const index = obstacles.indexOf(obstacle);
+                if (index > -1) {
+                    obstacles.splice(index, 1);
+                    scene.remove(obstacle);
+                    if (obstacle.geometry) obstacle.geometry.dispose();
+                    if (obstacle.material) obstacle.material.dispose();
+                }
+            }
+
+            // Score management
+            function getScoreHistory() {
+                const history = localStorage.getItem("snakeScoreHistory");
+                return history ? JSON.parse(history) : [];
+            }
+
+            function saveScore(newScore) {
+                if (newScore === 0) return;
+
+                const history = getScoreHistory();
+                const newEntry = {
+                    score: newScore,
+                    length: snake.length,
+                    date: new Date().toLocaleDateString(),
+                    time: new Date().toLocaleTimeString(),
+                };
+
+                history.push(newEntry);
+                history.sort((a, b) => b.score - a.score);
+
+                if (history.length > 10) {
+                    history.splice(10);
+                }
+
+                localStorage.setItem(
+                    "snakeScoreHistory",
+                    JSON.stringify(history),
+                );
+            }
+
+            function showScoreHistory() {
+                const history = getScoreHistory();
+                scoreListElement.innerHTML = "";
+
+                if (history.length === 0) {
+                    scoreListElement.innerHTML =
+                        '<div style="text-align: center; opacity: 0.7; padding: 30px; font-size: 1.2em; color: var(--color-primary);">No hunters yet! Start your rat hunt! 🐍🐀</div>';
+                } else {
+                    history.forEach((entry, index) => {
+                        const entryElement = document.createElement("div");
+                        entryElement.className = "score-entry";
+                        entryElement.innerHTML = `
+                        <span class="score-rank">#${index + 1}</span>
+                        <span class="score-value">${entry.score} points (L:${entry.length || "N/A"})</span>
+                        <span class="score-date">${entry.date}</span>
+                    `;
+                        scoreListElement.appendChild(entryElement);
+                    });
+                }
+
+                scoreModalElement.style.display = "flex";
+            }
+
+            function closeScoreHistory() {
+                scoreModalElement.style.display = "none";
+            }
+
+            function clearScoreHistory() {
+                if (
+                    confirm(
+                        "Are you sure you want to clear all scores? This cannot be undone.",
+                    )
+                ) {
+                    localStorage.removeItem("snakeScoreHistory");
+                    localStorage.removeItem("snakeHighScore");
+                    highScore = 0;
+                    highScoreElement.textContent = highScore;
+                    showScoreHistory(); // Refresh the display
+                }
+            }
+
+            // Initialize Three.js
+            function init3D() {
+                // Scene
+                scene = new THREE.Scene();
+
+                // Camera
+                camera = new THREE.PerspectiveCamera(
+                    60,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000,
+                );
+                camera.position.set(0, 45, 35);
+                camera.lookAt(0, 0, 0);
+
+                // Renderer
+                renderer = new THREE.WebGLRenderer({
+                    antialias: true,
+                    alpha: true,
+                    powerPreference: "high-performance",
+                });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.gammaOutput = true;
+                renderer.gammaFactor = 2.2;
+                document
+                    .getElementById("gameContainer")
+                    .appendChild(renderer.domElement);
+
+                createBackground();
+                createLighting();
+                createGameBoard();
+                createGridDots();
+                createSnake();
+                generateRat();
+            }
+
+            // Create enhanced background with circular lakes and more elements
+            function createBackground() {
+                // Main grass ground plane
+                const groundGeometry = new THREE.PlaneGeometry(500, 500);
+                const groundMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x228b22,
+                    roughness: 0.8,
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = -10;
+                ground.receiveShadow = true;
+                scene.add(ground);
+
+                // Blue sky
+                const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+                const skyMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x87ceeb,
+                    side: THREE.BackSide,
+                });
+                const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+                scene.add(sky);
+
+                // More visible clouds
+                for (let i = 0; i < 15; i++) {
+                    const cloudGeometry = new THREE.SphereGeometry(
+                        6 + Math.random() * 10,
+                        16,
+                        12,
+                    );
+                    const cloudMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.9,
+                    });
+                    const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                    cloud.position.set(
+                        (Math.random() - 0.5) * 400,
+                        40 + Math.random() * 30,
+                        (Math.random() - 0.5) * 400,
+                    );
+                    scene.add(cloud);
+                }
+
+                // Two circular lakes positioned to be clearly visible
+                const lake1Geometry = new THREE.CircleGeometry(25, 32);
+                const lake1Material = new THREE.MeshPhongMaterial({
+                    color: 0x1e90ff,
+                    shininess: 100,
+                });
+                const lake1 = new THREE.Mesh(lake1Geometry, lake1Material);
+                lake1.rotation.x = -Math.PI / 2;
+                lake1.position.set(-70, -9.5, 40);
+                lake1.receiveShadow = true;
+                scene.add(lake1);
+
+                const lake2Geometry = new THREE.CircleGeometry(20, 32);
+                const lake2Material = new THREE.MeshPhongMaterial({
+                    color: 0x1e90ff,
+                    shininess: 100,
+                });
+                const lake2 = new THREE.Mesh(lake2Geometry, lake2Material);
+                lake2.rotation.x = -Math.PI / 2;
+                lake2.position.set(80, -9.5, -60);
+                lake2.receiveShadow = true;
+                scene.add(lake2);
+
+                // More trees with proper proportions
+                for (let i = 0; i < 60; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 70 + Math.random() * 120;
+                    const treeX = Math.cos(angle) * distance;
+                    const treeZ = Math.sin(angle) * distance;
+
+                    const treeHeight = 8 + Math.random() * 15;
+                    const trunkRadius = 0.3 + Math.random() * 0.4;
+
+                    // Tree trunk
+                    const trunkGeometry = new THREE.CylinderGeometry(
+                        trunkRadius,
+                        trunkRadius * 1.3,
+                        treeHeight * 0.6, // Trunk is 60% of total height
+                    );
+                    const trunkMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x8b4513,
+                    });
+                    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                    trunk.position.set(
+                        treeX,
+                        (treeHeight * 0.6) / 2 - 10,
+                        treeZ,
+                    );
+                    trunk.castShadow = true;
+                    scene.add(trunk);
+
+                    // Tree foliage - positioned at top of trunk
+                    const foliageSize = 3 + Math.random() * 4;
+                    const foliageGeometry = new THREE.SphereGeometry(
+                        foliageSize,
+                        16,
+                        12,
+                    );
+                    const foliageMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x228b22,
+                    });
+                    const foliage = new THREE.Mesh(
+                        foliageGeometry,
+                        foliageMaterial,
+                    );
+                    foliage.position.set(
+                        treeX,
+                        treeHeight * 0.6 + foliageSize - 10, // Sits on top of trunk
+                        treeZ,
+                    );
+                    foliage.castShadow = true;
+                    scene.add(foliage);
+                }
+
+                // More bushes
+                for (let i = 0; i < 40; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 35 + Math.random() * 40;
+                    const bushX = Math.cos(angle) * distance;
+                    const bushZ = Math.sin(angle) * distance;
+
+                    const bushGeometry = new THREE.SphereGeometry(
+                        1.2 + Math.random() * 2,
+                        12,
+                        8,
+                    );
+                    bushGeometry.scale(1, 0.7, 1);
+                    const bushMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x32cd32,
+                    });
+                    const bush = new THREE.Mesh(bushGeometry, bushMaterial);
+                    bush.position.set(bushX, -8.5, bushZ);
+                    bush.castShadow = true;
+                    scene.add(bush);
+                }
+
+                // Scattered stones of different sizes
+                for (let i = 0; i < 80; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 25 + Math.random() * 100;
+                    const stoneX = Math.cos(angle) * distance;
+                    const stoneZ = Math.sin(angle) * distance;
+
+                    const stoneSize = 0.3 + Math.random() * 1.5;
+                    const stoneGeometry = new THREE.DodecahedronGeometry(
+                        stoneSize,
+                    );
+                    const stoneMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x696969,
+                    });
+                    const stone = new THREE.Mesh(stoneGeometry, stoneMaterial);
+                    stone.position.set(stoneX, stoneSize - 10, stoneZ);
+                    stone.rotation.set(
+                        Math.random() * Math.PI,
+                        Math.random() * Math.PI,
+                        Math.random() * Math.PI,
+                    );
+                    stone.castShadow = true;
+                    scene.add(stone);
+                }
+
+                // Colorful flowers
+                for (let i = 0; i < 60; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 20 + Math.random() * 50;
+                    const flowerX = Math.cos(angle) * distance;
+                    const flowerZ = Math.sin(angle) * distance;
+
+                    const flowerGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+                    const flowerMaterial = new THREE.MeshPhongMaterial({
+                        color: new THREE.Color().setHSL(
+                            Math.random(),
+                            0.8,
+                            0.6,
+                        ),
+                        emissive: new THREE.Color().setHSL(
+                            Math.random(),
+                            0.5,
+                            0.2,
+                        ),
+                        emissiveIntensity: 0.3,
+                    });
+                    const flower = new THREE.Mesh(
+                        flowerGeometry,
+                        flowerMaterial,
+                    );
+                    flower.position.set(flowerX, -9.2, flowerZ);
+                    scene.add(flower);
+                }
+
+                // Grass patches for texture
+                for (let i = 0; i < 100; i++) {
+                    const grassGeometry = new THREE.PlaneGeometry(
+                        3 + Math.random() * 5,
+                        2 + Math.random() * 4,
+                    );
+                    const grassMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x32cd32,
+                        transparent: true,
+                        opacity: 0.7,
+                    });
+                    const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+                    grass.rotation.x = -Math.PI / 2;
+
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 15 + Math.random() * 120;
+                    grass.position.set(
+                        Math.cos(angle) * distance,
+                        -9.7,
+                        Math.sin(angle) * distance,
+                    );
+                    scene.add(grass);
+                }
+            }
+
+            // Enhanced lighting
+            function createLighting() {
+                // Bright ambient light
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+
+                // Main directional light
+                const directionalLight = new THREE.DirectionalLight(
+                    0xffffff,
+                    1.0,
+                );
+                directionalLight.position.set(30, 50, 30);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 150;
+                directionalLight.shadow.camera.left = -80;
+                directionalLight.shadow.camera.right = 80;
+                directionalLight.shadow.camera.top = 80;
+                directionalLight.shadow.camera.bottom = -80;
+                scene.add(directionalLight);
+
+                // Spotlight on board
+                const spotlight = new THREE.SpotLight(0xffffff, 0.8);
+                spotlight.position.set(0, 60, 0);
+                spotlight.target.position.set(0, 0, 0);
+                spotlight.angle = Math.PI / 5;
+                spotlight.penumbra = 0.4;
+                spotlight.decay = 2;
+                spotlight.distance = 120;
+                spotlight.castShadow = true;
+                scene.add(spotlight);
+                scene.add(spotlight.target);
+            }
+
+            // Create proper rounded rectangle board with texture variation
+            function createGameBoard() {
+                // Create board group for tilting
+                boardGroup = new THREE.Group();
+                scene.add(boardGroup);
+
+                // Create rounded rectangle shape
+                const boardWidth = BOARD_SIZE * TILE_SIZE + 4;
+                const boardHeight = BOARD_SIZE * TILE_SIZE + 4;
+                const radius = 2; // Corner radius
+
+                const shape = new THREE.Shape();
+
+                // Create rounded rectangle path
+                shape.moveTo(-boardWidth / 2 + radius, -boardHeight / 2);
+                shape.lineTo(boardWidth / 2 - radius, -boardHeight / 2);
+                shape.quadraticCurveTo(
+                    boardWidth / 2,
+                    -boardHeight / 2,
+                    boardWidth / 2,
+                    -boardHeight / 2 + radius,
+                );
+                shape.lineTo(boardWidth / 2, boardHeight / 2 - radius);
+                shape.quadraticCurveTo(
+                    boardWidth / 2,
+                    boardHeight / 2,
+                    boardWidth / 2 - radius,
+                    boardHeight / 2,
+                );
+                shape.lineTo(-boardWidth / 2 + radius, boardHeight / 2);
+                shape.quadraticCurveTo(
+                    -boardWidth / 2,
+                    boardHeight / 2,
+                    -boardWidth / 2,
+                    boardHeight / 2 - radius,
+                );
+                shape.lineTo(-boardWidth / 2, -boardHeight / 2 + radius);
+                shape.quadraticCurveTo(
+                    -boardWidth / 2,
+                    -boardHeight / 2,
+                    -boardWidth / 2 + radius,
+                    -boardHeight / 2,
+                );
+
+                // Extrude the shape to make it 3D
+                const extrudeSettings = {
+                    depth: 2,
+                    bevelEnabled: true,
+                    bevelThickness: 0.1,
+                    bevelSize: 0.05,
+                    bevelOffset: 0,
+                    bevelSegments: 4,
+                };
+
+                const boardGeometry = new THREE.ExtrudeGeometry(
+                    shape,
+                    extrudeSettings,
+                );
+
+                // Solid dirt brown material with variation
+                const boardMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x8b4513, // Saddle brown
+                    roughness: 0.9,
+                    shininess: 10,
+                });
+
+                gameBoard = new THREE.Mesh(boardGeometry, boardMaterial);
+                gameBoard.position.y = -3;
+                gameBoard.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
+                gameBoard.receiveShadow = true;
+                gameBoard.castShadow = true;
+                boardGroup.add(gameBoard);
+
+                // Add dirt texture variation with darker patches
+                for (let i = 0; i < 15; i++) {
+                    const patchGeometry = new THREE.PlaneGeometry(
+                        2 + Math.random() * 4,
+                        2 + Math.random() * 4,
+                    );
+                    const patchMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x654321, // Darker brown
+                        transparent: true,
+                        opacity: 0.6,
+                    });
+                    const patch = new THREE.Mesh(patchGeometry, patchMaterial);
+                    patch.rotation.x = -Math.PI / 2;
+                    patch.position.set(
+                        (Math.random() - 0.5) * boardWidth * 0.8,
+                        -0.8,
+                        (Math.random() - 0.5) * boardHeight * 0.8,
+                    );
+                    boardGroup.add(patch);
+                }
+            }
+
+            // Create visible grid dots
+            function createGridDots() {
+                gridDots = [];
+
+                // Grid dots on the dirt platform
+                for (let x = 0; x < BOARD_SIZE; x++) {
+                    for (let z = 0; z < BOARD_SIZE; z++) {
+                        const worldPos = gridToWorld(x, z);
+
+                        const dotGeometry = new THREE.SphereGeometry(0.1, 8, 6);
+                        const dotMaterial = new THREE.MeshPhongMaterial({
+                            color: 0xd2691e, // Chocolate brown - darker than dirt
+                            emissive: 0x654321,
+                            emissiveIntensity: 0.1,
+                        });
+
+                        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                        dot.position.set(worldPos.x, -0.5, worldPos.z);
+                        boardGroup.add(dot);
+                        gridDots.push(dot);
+                    }
+                }
+
+                // Head position dot
+                const headDotGeometry = new THREE.SphereGeometry(0.15, 12, 8);
+                const headDotMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x32ff7e,
+                    emissive: 0x1a8040,
+                    emissiveIntensity: 0.5,
+                });
+
+                headDot = new THREE.Mesh(headDotGeometry, headDotMaterial);
+                headDot.position.set(0, 0.3, 0);
+                scene.add(headDot);
+            }
+
+            // Create snake
+            function createSnake() {
+                snake = [{ x: 10, y: 0, z: 10 }];
+                updateSnakeVisuals();
+            }
+
+            // Generate better shaped rat
+            function generateRat() {
+                if (food) {
+                    scene.remove(food);
+                    if (food.geometry) food.geometry.dispose();
+                    if (food.material) food.material.dispose();
+                }
+
+                let ratGridX, ratGridZ;
+                let validPosition = false;
+
+                while (!validPosition) {
+                    ratGridX = Math.floor(Math.random() * BOARD_SIZE);
+                    ratGridZ = Math.floor(Math.random() * BOARD_SIZE);
+
+                    validPosition = true;
+                    for (let segment of snake) {
+                        if (segment.x === ratGridX && segment.z === ratGridZ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    for (let obstacle of obstacles) {
+                        if (
+                            ratGridX === obstacle.userData.gridX &&
+                            ratGridZ === obstacle.userData.gridZ
+                        ) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                }
+
+                const worldPos = gridToWorld(ratGridX, ratGridZ);
+
+                // Create better rat
+                const ratGroup = new THREE.Group();
+
+                // Rat body - more realistic proportions
+                const bodyGeometry = new THREE.SphereGeometry(0.3, 12, 8);
+                bodyGeometry.scale(1.5, 0.8, 1.0);
+                const bodyMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x555555,
+                    shininess: 30,
+                });
+                const ratBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                ratBody.position.y = 0.1;
+                ratGroup.add(ratBody);
+
+                // Rat head - more detailed
+                const headGeometry = new THREE.SphereGeometry(0.18, 12, 8);
+                headGeometry.scale(1.2, 1.0, 1.0);
+                const headMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x666666,
+                });
+                const ratHead = new THREE.Mesh(headGeometry, headMaterial);
+                ratHead.position.set(0.4, 0.1, 0);
+                ratGroup.add(ratHead);
+
+                // Snout
+                const snoutGeometry = new THREE.SphereGeometry(0.06, 8, 6);
+                snoutGeometry.scale(1.5, 0.8, 0.8);
+                const snoutMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x777777,
+                });
+                const snout = new THREE.Mesh(snoutGeometry, snoutMaterial);
+                snout.position.set(0.52, 0.08, 0);
+                ratGroup.add(snout);
+
+                // Ears - more realistic
+                const earGeometry = new THREE.SphereGeometry(0.08, 8, 6);
+                earGeometry.scale(1.0, 1.5, 0.3);
+                const earMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x444444,
+                });
+
+                const leftEar = new THREE.Mesh(earGeometry, earMaterial);
+                leftEar.position.set(0.32, 0.22, 0.12);
+                ratGroup.add(leftEar);
+
+                const rightEar = new THREE.Mesh(earGeometry, earMaterial);
+                rightEar.position.set(0.32, 0.22, -0.12);
+                ratGroup.add(rightEar);
+
+                // Tail - more detailed
+                const tailGeometry = new THREE.CylinderGeometry(
+                    0.02,
+                    0.008,
+                    0.7,
+                );
+                const tailMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x333333,
+                });
+                const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+                tail.position.set(-0.5, 0.05, 0);
+                tail.rotation.z = Math.PI / 4;
+                tail.rotation.x = Math.PI / 8;
+                ratGroup.add(tail);
+
+                // Eyes - brighter
+                const eyeGeometry = new THREE.SphereGeometry(0.025, 8, 6);
+                const eyeMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff4444,
+                    emissive: 0x441111,
+                    emissiveIntensity: 0.4,
+                });
+
+                const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                leftEye.position.set(0.5, 0.15, 0.08);
+                ratGroup.add(leftEye);
+
+                const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                rightEye.position.set(0.5, 0.15, -0.08);
+                ratGroup.add(rightEye);
+
+                // Whiskers
+                const whiskerGeometry = new THREE.CylinderGeometry(
+                    0.005,
+                    0.005,
+                    0.2,
+                );
+                const whiskerMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x222222,
+                });
+
+                for (let i = 0; i < 6; i++) {
+                    const whisker = new THREE.Mesh(
+                        whiskerGeometry,
+                        whiskerMaterial,
+                    );
+                    const side = i < 3 ? 1 : -1;
+                    const angle = (i % 3) * 0.3 - 0.3;
+                    whisker.position.set(
+                        0.58,
+                        0.08 + (i % 3) * 0.02,
+                        side * 0.05,
+                    );
+                    whisker.rotation.z = angle;
+                    whisker.rotation.y = (side * Math.PI) / 4;
+                    ratGroup.add(whisker);
+                }
+
+                ratGroup.position.set(worldPos.x, 0.2, worldPos.z);
+                ratGroup.castShadow = true;
+                ratGroup.userData = { gridX: ratGridX, gridZ: ratGridZ };
+
+                food = ratGroup;
+                scene.add(food);
+            }
+
+            // Move rat away from snake
+            function moveRat() {
+                if (!food || !gameRunning) return;
+
+                const snakeHead = snake[0];
+                const ratPos = {
+                    x: food.userData.gridX,
+                    z: food.userData.gridZ,
+                };
+
+                const dx = ratPos.x - snakeHead.x;
+                const dz = ratPos.z - snakeHead.z;
+
+                const moves = [
+                    { x: ratPos.x + Math.sign(dx), z: ratPos.z },
+                    { x: ratPos.x, z: ratPos.z + Math.sign(dz) },
+                    {
+                        x: ratPos.x + Math.sign(dx),
+                        z: ratPos.z + Math.sign(dz),
+                    },
+                    { x: ratPos.x - Math.sign(dx), z: ratPos.z },
+                    { x: ratPos.x, z: ratPos.z - Math.sign(dz) },
+                ];
+
+                for (let move of moves) {
+                    if (isValidGridPosition(move.x, move.z)) {
+                        let validMove = true;
+                        for (let segment of snake) {
+                            if (segment.x === move.x && segment.z === move.z) {
+                                validMove = false;
+                                break;
+                            }
+                        }
+
+                        for (let obstacle of obstacles) {
+                            if (
+                                move.x === obstacle.userData.gridX &&
+                                move.z === obstacle.userData.gridZ
+                            ) {
+                                validMove = false;
+                                break;
+                            }
+                        }
+
+                        if (validMove) {
+                            food.userData.gridX = move.x;
+                            food.userData.gridZ = move.z;
+                            const newWorldPos = gridToWorld(move.x, move.z);
+                            food.position.set(
+                                newWorldPos.x,
+                                0.2,
+                                newWorldPos.z,
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Move snake
+            function moveSnake() {
+                if (dx === 0 && dy === 0 && dz === 0) return;
+
+                const head = snake[0];
+                let newHead = {
+                    x: head.x + dx,
+                    y: head.y + dy,
+                    z: head.z + dz,
+                };
+
+                // Handle wall collision with teleportation
+                if (!isValidGridPosition(newHead.x, newHead.z)) {
+                    const wrapped = wrapCoordinates(newHead.x, newHead.z);
+                    newHead.x = wrapped.x;
+                    newHead.z = wrapped.z;
+                }
+
+                // Check self collision
+                for (let segment of snake) {
+                    if (segment.x === newHead.x && segment.z === newHead.z) {
+                        gameOver();
+                        return;
+                    }
+                }
+
+                // Check obstacle collision
+                for (let obstacle of obstacles) {
+                    if (
+                        newHead.x === obstacle.userData.gridX &&
+                        newHead.z === obstacle.userData.gridZ
+                    ) {
+                        if (isBoostActive) {
+                            // Break the obstacle
+                            removeObstacle(obstacle);
+                            score += 2; // Bonus points for breaking obstacle
+                            scoreElement.textContent = score;
+                        } else {
+                            // Game over
+                            gameOver();
+                            return;
+                        }
+                        break;
+                    }
+                }
+
+                snake.unshift(newHead);
+
+                // Check rat collision
+                if (
+                    food &&
+                    newHead.x === food.userData.gridX &&
+                    newHead.z === food.userData.gridZ
+                ) {
+                    score += 10;
+                    scoreElement.textContent = score;
+
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreElement.textContent = highScore;
+                        localStorage.setItem("snakeHighScore", highScore);
+                    }
+
+                    generateRat();
+                } else {
+                    snake.pop();
+                }
+
+                // Check boost pickup collision
+                if (
+                    boostPickup &&
+                    newHead.x === boostPickup.userData.gridX &&
+                    newHead.z === boostPickup.userData.gridZ
+                ) {
+                    if (boostCharges < maxBoostCharges) {
+                        boostCharges++;
+                        updateBoostBar();
+                    }
+
+                    scene.remove(boostPickup);
+                    if (boostPickup.geometry) boostPickup.geometry.dispose();
+                    if (boostPickup.material) boostPickup.material.dispose();
+                    boostPickup = null;
+                }
+
+                updateSnakeVisuals();
+            }
+
+            // Game over
+            function gameOver() {
+                gameRunning = false;
+                finalScoreElement.textContent = score;
+                finalLengthElement.textContent = snake.length;
+                saveScore(score);
+                gameOverElement.style.display = "flex";
+            }
+
+            // Game loop
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const now = performance.now();
+
+                // Update boost system
+                updateBoost(now);
+
+                // Update board rotation
+                updateBoardRotation();
+
+                // Update head dot animation
+                updateHeadDot();
+
+                // Manage spawning
+                if (gameRunning && !gamePaused) {
+                    manageBoosterSpawn(now);
+                    manageObstacleSpawn(now);
+                }
+
+                // Game logic
+                if (gameRunning && !gamePaused) {
+                    if (now - lastMoveTime > moveInterval) {
+                        moveSnake();
+                        lastMoveTime = now;
+                    }
+
+                    if (now - lastRatMoveTime > ratMoveInterval) {
+                        moveRat();
+                        lastRatMoveTime = now;
+                    }
+                }
+
+                // Animate rat
+                if (food) {
+                    food.rotation.y += 0.008;
+                    food.position.y = 0.2 + Math.sin(now * 0.003) * 0.02;
+                }
+
+                // Animate boost pickup
+                if (boostPickup) {
+                    boostPickup.rotation.y += 0.04;
+                    boostPickup.position.y =
+                        0.8 +
+                        Math.sin(now * 0.006 + boostPickup.position.x) * 0.08;
+                }
+
+                // Animate obstacles
+                obstacles.forEach((obstacle) => {
+                    obstacle.rotation.y += 0.003;
+                });
+
+                renderer.render(scene, camera);
+            }
+
+            // Pause/Resume
+            function togglePause() {
+                if (gameRunning) {
+                    gamePaused = !gamePaused;
+                    document.querySelector(".controls-ui .btn").textContent =
+                        gamePaused ? "RESUME" : "PAUSE";
+
+                    if (gamePaused) {
+                        pauseOverlayElement.style.display = "flex";
+                    } else {
+                        pauseOverlayElement.style.display = "none";
+                    }
+                }
+            }
+
+            // Keyboard controls
+            document.addEventListener("keydown", (event) => {
+                if (!gameStarted) {
+                    const validStartKeys = [
+                        "w",
+                        "s",
+                        "a",
+                        "d",
+                        "arrowup",
+                        "arrowdown",
+                        "arrowleft",
+                        "arrowright",
+                    ];
+                    if (validStartKeys.includes(event.key.toLowerCase())) {
+                        gameStarted = true;
+                        gameRunning = true;
+                        instructionsElement.style.display = "none";
+                        lastMoveTime = performance.now();
+                        lastRatMoveTime = performance.now();
+                        lastBoosterSpawnTime = performance.now();
+                        lastObstacleSpawnTime = performance.now();
+                    } else {
+                        return;
+                    }
+                }
+
+                if (!gameRunning) return;
+
+                switch (event.key.toLowerCase()) {
+                    case "w":
+                    case "arrowup":
+                        if (dz !== 1) {
+                            dx = 0;
+                            dy = 0;
+                            dz = -1;
+                        }
+                        break;
+                    case "s":
+                    case "arrowdown":
+                        if (dz !== -1) {
+                            dx = 0;
+                            dy = 0;
+                            dz = 1;
+                        }
+                        break;
+                    case "a":
+                    case "arrowleft":
+                        if (dx !== 1) {
+                            dx = -1;
+                            dy = 0;
+                            dz = 0;
+                        }
+                        break;
+                    case "d":
+                    case "arrowright":
+                        if (dx !== -1) {
+                            dx = 1;
+                            dy = 0;
+                            dz = 0;
+                        }
+                        break;
+                    case " ":
+                        event.preventDefault();
+                        if (gamePaused) {
+                            togglePause();
+                        } else {
+                            activateBoost();
+                        }
+                        break;
+                    case "escape":
+                        event.preventDefault();
+                        if (scoreModalElement.style.display === "flex") {
+                            closeScoreHistory();
+                        } else {
+                            togglePause();
+                        }
+                        break;
+                }
+            });
+
+            // Restart game
+            function restartGame() {
+                score = 0;
+                dx = dy = dz = 0;
+                gameRunning = false;
+                gamePaused = false;
+                gameStarted = false;
+                boostCharges = 5;
+                isBoostActive = false;
+                moveInterval = baseInterval;
+
+                scoreElement.textContent = score;
+                gameOverElement.style.display = "none";
+                pauseOverlayElement.style.display = "none";
+                instructionsElement.style.display = "block";
+                document.querySelector(".controls-ui .btn").textContent =
+                    "PAUSE";
+                updateBoostBar();
+
+                // Clear pickups and obstacles
+                if (boostPickup) {
+                    scene.remove(boostPickup);
+                    if (boostPickup.geometry) boostPickup.geometry.dispose();
+                    if (boostPickup.material) boostPickup.material.dispose();
+                    boostPickup = null;
+                }
+
+                obstacles.forEach((obstacle) => {
+                    scene.remove(obstacle);
+                    if (obstacle.geometry) obstacle.geometry.dispose();
+                    if (obstacle.material) obstacle.material.dispose();
+                });
+                obstacles = [];
+
+                // Clear snake properly
+                clearSnakeMeshes();
+                createSnake();
+                generateRat();
+            }
+
+            // Window resize
+            window.addEventListener("resize", () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Initialize everything with proper timing
+            setTimeout(() => {
+                loadingElement.style.display = "none";
+                gameContainerElement.style.display = "block";
+                init3D();
+                animate();
+            }, 2000);
+        </script>
+    </body>
+</html>
